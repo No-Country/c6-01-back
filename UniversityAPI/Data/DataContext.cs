@@ -12,7 +12,7 @@ namespace UniversityAPI.Data
         public DbSet<University> Universities { get; set; }
 
    
-        public DbSet<Faculty> Faculty { get; set; }
+        public DbSet<Faculty> Faculties { get; set; }
 
         public DbSet<Career> Careers { get; set; }
 
