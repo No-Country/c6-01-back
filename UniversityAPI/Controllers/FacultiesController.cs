@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,111 +17,100 @@ namespace UniversityAPI.Controllers
     public class FacultiesController : ControllerBase
     {
         private readonly DataContext _context;
+        private readonly IMapper _mapper;
 
-        public FacultiesController(DataContext context)
+        public FacultiesController(DataContext context, IMapper mapper)
         {
             _context = context;
+            _mapper = mapper;
         }
 
         // GET: api/Faculties
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Faculty>>> GetFaculty()
+        public async Task<ActionResult<List<FacultyDTO>>> GetFaculty()
         {
-            if (_context.Faculty == null)
+            if (_context.Faculties == null)
             {
                 return NotFound();
             }
-            return await _context.Faculty.Include(f=> f.Careers).ThenInclude(f => f.stats).ToListAsync();
+            var faculties = await _context.Faculties.Include(f=> f.Careers).ThenInclude(f => f.stats).ToListAsync();
+
+            return _mapper.Map<List<FacultyDTO>>(faculties);
         }
 
         // GET: api/Faculties/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Faculty>> GetFaculty(int id)
+        public async Task<ActionResult<FacultyDTO>> GetFaculty(int id)
         {
-            if (_context.Faculty == null)
+            if (_context.Faculties == null)
             {
                 return NotFound();
             }
-            var faculty = await _context.Faculty.FindAsync(id);
+            var faculty = await _context.Faculties.FindAsync(id);
 
             if (faculty == null)
             {
                 return NotFound();
             }
 
-            return faculty;
+            return _mapper.Map<FacultyDTO>(faculty);
         }
 
         // PUT: api/Faculties/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutFaculty(int id, FacultyDTO facultyDTO)
+        public async Task<IActionResult> PutFaculty(int id, FacultyCreationDTO facultyCreationDTO)
         {
-            Faculty? faculty = _context.Faculty.Find(id);
+            var exists = await _context.Faculties.AnyAsync(x => x.Id == id);
 
 
-            if (faculty == null)
+            if (!exists)
             {
                 return BadRequest();
             }
 
-            faculty.Name = facultyDTO.Name;
+            var faculty = _mapper.Map<Faculty>(facultyCreationDTO);
+            faculty.Id = id;
 
-            faculty.Address = facultyDTO.Address;
 
-            faculty.University = _context.Universities.FirstOrDefault(u=> u.Name==facultyDTO.UniversityName);
-
-            faculty.UniversityId = faculty.University.Id;
-
+            _context.Update(faculty);
             await _context.SaveChangesAsync();
 
-            return Ok(faculty);
+            return Ok();
         }
 
         // POST: api/Faculties
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<IEnumerable<Faculty>>> PostFaculty(FacultyDTO facultyDTO)
+        public async Task<ActionResult> PostFaculty(FacultyCreationDTO facultyCreationDTO)
         {
+            var universityExists = await _context.Universities.AnyAsync(x => x.Id == facultyCreationDTO.UniversityId);
 
-            University university = _context.Universities.FirstOrDefault(u=> u.Name== facultyDTO.UniversityName);
-            if (_context.Faculty == null)
-            {
-                return Problem("Entity set 'DataContext.Faculty'  is null.");
-            }
+            if (!universityExists) { return BadRequest(); }
 
-            Faculty faculty = new Faculty
-            {
-               
-                Name = facultyDTO.Name,
-                Address = facultyDTO.Address,
-                UniversityId=university.Id,
-                University=university,
-                Careers=null,
-            };
+            var faculty = _mapper.Map<Faculty>(facultyCreationDTO);
 
-
-            university?.Faculties?.Add(faculty);
+            _context.Add(faculty);
             await _context.SaveChangesAsync();
 
-            return Ok(await GetFaculty());
+            return Ok();
         }
 
         // DELETE: api/Faculties/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteFaculty(int id)
         {
-            if (_context.Faculty == null)
+            if (_context.Faculties == null)
             {
                 return NotFound();
             }
-            var faculty = await _context.Faculty.FindAsync(id);
+            var faculty = await _context.Faculties.FindAsync(id);
             if (faculty == null)
             {
                 return NotFound();
             }
 
-            _context.Faculty.Remove(faculty);
+            _context.Faculties.Remove(faculty);
             await _context.SaveChangesAsync();
 
             return NoContent();
@@ -128,7 +118,7 @@ namespace UniversityAPI.Controllers
 
         private bool FacultyExists(int id)
         {
-            return (_context.Faculty?.Any(e => e.Id == id)).GetValueOrDefault();
+            return (_context.Faculties?.Any(e => e.Id == id)).GetValueOrDefault();
         }
     }
 }

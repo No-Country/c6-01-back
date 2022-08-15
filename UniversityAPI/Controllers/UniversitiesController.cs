@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,73 +17,73 @@ namespace UniversityAPI.Controllers
     public class UniversitiesController : ControllerBase
     {
         private readonly DataContext _context;
+        private readonly IMapper _mapper;
 
-        public UniversitiesController(DataContext context)
+        public UniversitiesController(DataContext context, IMapper mapper)
         {
             _context = context;
+            _mapper = mapper;
         }
 
         // GET: api/Universities
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<University>>> GetUniversities()
+        public async Task<ActionResult<List<UniversityDTO>>> GetUniversities()
         {
             if (_context.Universities == null)
             {
                 return NotFound();
             }
-            return await _context.Universities.Include(u => u.Faculties).ThenInclude(u => u.Careers).ThenInclude(f => f.stats).ToListAsync();
+            var universities = await _context.Universities.Include(x => x.Faculties).ThenInclude(x => x.Careers).ThenInclude(x => x.stats).ToListAsync();
+            return _mapper.Map<List<UniversityDTO>>(universities);
         }
 
         // GET: api/Universities/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<University>> GetUniversity(int id)
+        public async Task<ActionResult<UniversityDTO>> GetUniversity(int id)
         {
             if (_context.Universities == null)
             {
                 return NotFound();
             }
-            var university = await _context.Universities.FindAsync(id);
+            var university = await _context.Universities.
+                Include(x => x.Faculties).ThenInclude(x => x.Careers).ThenInclude(x => x.stats).FirstOrDefaultAsync(x => x.Id == id);
 
             if (university == null)
             {
                 return NotFound();
             }
 
-            return university;
+
+
+            return _mapper.Map<UniversityDTO>(university);
         }
 
         // PUT: api/Universities/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutUniversity(int id, UniversityDTO universityDTO)
+        public async Task<ActionResult> PutUniversity(int id, UniversityCreationDTO universityCreationDTO)
         {
-            University? university = _context.Universities.Find(id);
+            var universityExists = await _context.Universities.AnyAsync(x => x.Id == id);
 
 
-            if (university == null)
+            if (!universityExists)
             {
                 return BadRequest();
             }
 
-            university.Name = universityDTO.Name;
-
-            university.Address = universityDTO.Address;
-
-            university.Image = universityDTO.Image;
-
-            university.StudentAmount = universityDTO.StudentAmount;
-
+            var university = _mapper.Map<University>(universityCreationDTO);
+            _context.Update(university);
             await _context.SaveChangesAsync();
 
-            return Ok(university);
+            return Ok();
         }
 
         // POST: api/Universities
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<IEnumerable<University>>> PostUniversity(UniversityDTO universityDTO)
+        public async Task<ActionResult> PostUniversity(UniversityCreationDTO universityCreationDTO)
         {
-            int num = _context.Universities.Where(u => u.Name == universityDTO.Name).Count();
+            int num = _context.Universities.Where(u => u.Name == universityCreationDTO.Name).Count();
 
             if (_context.Universities == null)
             {
@@ -92,21 +93,12 @@ namespace UniversityAPI.Controllers
             if (num > 0)
                 return Problem("Into the DB has already exist the name of the university");
 
-            University university = new University
-            {
-                Name = universityDTO.Name,
-                Address = universityDTO.Address,
-                Image = universityDTO.Image,
-                StudentAmount = universityDTO.StudentAmount,
-                Faculties = null,
-            };
+            var university = _mapper.Map<University>(universityCreationDTO);
 
-
-
-            _context.Universities.Add(university);
+            _context.Add(university);
             await _context.SaveChangesAsync();
 
-            return Ok(await GetUniversities());
+            return Ok();
         }
 
         // DELETE: api/Universities/5

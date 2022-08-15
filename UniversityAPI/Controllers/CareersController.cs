@@ -1,4 +1,5 @@
-﻿using System;
+﻿using AutoMapper;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,10 +17,12 @@ namespace UniversityAPI.Controllers
     public class CareersController : ControllerBase
     {
         private readonly DataContext _context;
+        private readonly IMapper _mapper;
 
-        public CareersController(DataContext context)
+        public CareersController(DataContext context, IMapper mapper)
         {
             _context = context;
+            _mapper = mapper;
         }
 
         // GET: api/Careers
@@ -54,56 +57,48 @@ namespace UniversityAPI.Controllers
         // PUT: api/Careers/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutCareer(int id,CareerDTO careerDTO)
+        public async Task<IActionResult> PutCareer(int id,CareerCreationDTO careerCreationDTO)
         {
-            Career? career = _context.Careers.Find(id);
+            bool careerExists = await _context.Careers.AnyAsync(x => x.Id == id);
 
-           
-            if (career == null)
+            if (!careerExists)
             {
                 return BadRequest();
             }
 
-            career.Name = careerDTO.Name;
+            Faculty faculty = _context.Faculties.FirstOrDefault(x => x.Id == careerCreationDTO.FacultyId);
 
-            career.Faculty= _context.Faculty.FirstOrDefault(f=>f.Name==careerDTO.FacultyName);
+            if (faculty == null) { return BadRequest(); }
 
-            career.FacultyId = career.Faculty.Id;
+            var career = _mapper.Map<Career>(careerCreationDTO);
+            career.Id = id;
 
+            _context.Update(career);
             await _context.SaveChangesAsync();
-
-
-
             return Ok(career);
         }
 
         // POST: api/Careers
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<IEnumerable<Career>>> PostCareer(CareerDTO careerDTO)
+        public async Task<ActionResult> PostCareer(CareerCreationDTO careerCreationDTO)
         {
-            Faculty faculty = _context.Faculty.FirstOrDefault(u => u.Name == careerDTO.FacultyName);
-            if (_context.Faculty == null)
+            Faculty faculty = _context.Faculties.FirstOrDefault(x => x.Id == careerCreationDTO.FacultyId);
+            if (_context.Faculties == null)
             {
                 return Problem("Entity set 'DataContext.Faculty'  is null.");
             }
 
             if (faculty == null)
-                return Problem(string.Empty);
-            Career career = new Career
-            {
+                return BadRequest();
 
-                Name = careerDTO.Name,
-                Faculty = faculty,
-                FacultyId = faculty.Id,
+            var career = _mapper.Map<Career>(careerCreationDTO);
 
-            };
-
-
-            faculty?.Careers?.Add(career);
+            _context.Add(career);
+            
             await _context.SaveChangesAsync();
 
-            return Ok(_context.Faculty.Include(x => x.Careers).ToList());
+            return Ok();
         }
 
         // DELETE: api/Careers/5

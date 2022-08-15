@@ -5,6 +5,6 @@
         public string Name { get; set; }
         public string Address { get; set; }
         public string UniversityName { get; set; }
-
+        public StatsDTO Stats { get; set; }
     }
 }
